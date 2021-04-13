@@ -1,0 +1,30 @@
+{
+    "name": "sms/i2crm_test3",
+    "description": "Decorators for PSR-7 streams",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Alexander Smirnov",
+            "email": "fredeom@mail.ru"
+        }
+    ],
+    "autoload": {
+      "classmap": [
+        "src/"
+      ]
+    },
+    "autoload-dev": {
+      "classmap": [
+        "tests/"
+      ]
+    },
+    "require": {
+      "php": ">=7.1",
+      "ext-openssl": "*",
+      "psr/http-message": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "guzzlehttp/psr7": "^1.8"
+    }
+}
