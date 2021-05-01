@@ -36,14 +36,14 @@ final class WhatsAppEncryptingStreamTest extends TestCase {
     $inStream = Utils::streamFor(Utils::tryFopen(self::sampleDir . $mediaType .'.original', 'r'));
     $cipherTextStream = new WhatsAppEncryptingStream($inStream, $keys);
 
+    $tmpFile = tmpfile();
+    $metadata = stream_get_meta_data($tmpFile);
+    $tmpUri = $metadata['uri'];
+
+    $cipherTextFile = Utils::streamFor(Utils::tryFopen($tmpUri, 'w'));
+    Utils::copyToStream($cipherTextStream, $cipherTextFile);
+
     if (!$testSideCar) {
-      $tmpFile = tmpfile();
-      $metadata = stream_get_meta_data($tmpFile);
-      $tmpUri = $metadata['uri'];
-
-      $cipherTextFile = Utils::streamFor(Utils::tryFopen($tmpUri, 'w'));
-      Utils::copyToStream($cipherTextStream, $cipherTextFile);
-
       $this->assertTrue(md5_file($tmpUri) == md5_file(self::sampleDir . $mediaType . '.encrypted'));
     }
 

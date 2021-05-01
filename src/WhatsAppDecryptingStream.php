@@ -5,8 +5,11 @@ use Psr\Http\Message\StreamInterface;
 require_once(__DIR__ . '/CipherKeyGenerator.php');
 
 class WhatsAppDecryptingStream implements StreamInterface {
-  
+
+  const BLOCK_SIZE = 32;
+
   private $buffer = '';
+  private $cipherBuffer = '';
   private $keys;
   private $stream;
 
@@ -14,7 +17,7 @@ class WhatsAppDecryptingStream implements StreamInterface {
     $this->stream = $stream;
     $this->keys = $keys;
 
-    $this->decrypt();
+    $this->initializeHash();
   }
 
   public function getSize() {
@@ -30,9 +33,13 @@ class WhatsAppDecryptingStream implements StreamInterface {
   }
   public function close() {
     $this->buffer = '';
+    $this->cipherBuffer = '';
+    $this->stream->close();
   }
   public function detach() {
     $this->buffer = '';
+    $this->cipherBuffer = '';
+    return $this->stream->detach();
   }
   public function tell() {
     throw new \BadMethodCallException('Not implemented');
@@ -67,46 +74,77 @@ class WhatsAppDecryptingStream implements StreamInterface {
   }
 
   public function eof() {
-    return $this->buffer == '';
+    return $this->buffer === '' && $this->cipherBuffer === '' && $this->stream->eof();
   }
 
-  public function read($length = -1) {
-    if ($length == -1) {
-      $length = strlen($this->buffer);
+  public function read($length) {
+    if ($length > strlen($this->buffer)) {
+      $this->buffer .= $this->decryptBlock(
+          self::BLOCK_SIZE * ceil(($length - strlen($this->buffer)) / self::BLOCK_SIZE)
+      );
     }
     $data = substr($this->buffer, 0, $length);
     $this->buffer = substr($this->buffer, $length);
     return $data ? $data : '';
   }
 
-  private function isSignatureValid($file, $mac) {
-    return substr($mac, 0, 10) == substr(hash_hmac("sha256", $this->keys->getIv() . $file, $this->keys->getMacKey(), true), 0, 10);
+  private function isSignatureValid($hash, $mac) {
+    return substr($mac, 0, 10) == substr($hash, 0, 10);
   }
 
-  private function decrypt() {
-    if ($this->stream->eof()) {
-      return;
+  private function decryptBlock($length) {
+    if ($this->cipherBuffer === '' && $this->stream->eof()) {
+      return '';
     }
 
-    $length = 1024 * 1024;
-    $plainText = '';
-    do {
-        $plainText .= $this->stream->read($length);
-    } while (!$this->stream->eof());
-
-    $fileAndMac = str_split($plainText, strlen($plainText) - 10);
-
-    if (!$this->isSignatureValid($fileAndMac[0], $fileAndMac[1])) {
-      throw new \BadMethodCallException('Validation failed');
+    $cipherText = $this->cipherBuffer;
+    while (strlen($cipherText) < $length && !$this->stream->eof()) {
+        $cipherText .= $this->stream->read($length - strlen($cipherText));
     }
 
-    $this->buffer = openssl_decrypt(
-      $fileAndMac[0],
+    $options = OPENSSL_RAW_DATA;
+    $this->cipherBuffer = $this->stream->read(self::BLOCK_SIZE + 10);
+    if (!($this->cipherBuffer === '' && $this->stream->eof())) {
+      $options |= OPENSSL_ZERO_PADDING;
+    } else {
+      $cipherBufferLen = strlen($this->cipherBuffer);
+      if ($cipherBufferLen < 10) {
+        $this->cipherBuffer = substr($cipherText, strlen($cipherText) - (10 - $cipherBufferLen)) . $this->cipherBuffer;
+        $cipherText = substr($cipherText, 0, strlen($cipherText) - (10 - $cipherBufferLen));
+      }
+    }
+
+    hash_update($this->hashResource, $cipherText);
+
+    if (strlen($this->cipherBuffer) < self::BLOCK_SIZE + 10) {
+      $mac = substr($this->cipherBuffer, strlen($this->cipherBuffer) - 10, 10);
+      $this->cipherBuffer = substr($this->cipherBuffer, 0, strlen($this->cipherBuffer) - 10);
+
+      hash_update($this->hashResource, $this->cipherBuffer);
+
+      $hash = hash_final($this->hashResource, true);
+
+      if (!$this->isSignatureValid($hash, $mac)) {
+        throw new \BadMethodCallException('Validation failed');
+      }
+    }
+
+    $plainText = openssl_decrypt(
+      $cipherText,
       "AES-256-CBC",
       $this->keys->getCipherKey(),
-      OPENSSL_RAW_DATA,
+      $options,
       $this->keys->getIv()
     );
+
+    $this->keys->setIv(substr($cipherText, strlen($cipherText) - 16));
+
+    return $plainText;
+  }
+
+  private function initializeHash() {
+    $this->hashResource = hash_init('sha256', HASH_HMAC, $this->keys->getMacKey());
+    hash_update($this->hashResource, $this->keys->getIv());
   }
 }
 

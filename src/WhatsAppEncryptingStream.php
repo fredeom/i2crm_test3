@@ -6,8 +6,12 @@ require_once(__DIR__ . '/CipherKeyGenerator.php');
 
 class WhatsAppEncryptingStream implements StreamInterface {
 
+  const BLOCK_SIZE = 32;
+  const SIDECAR_BLOCK_SIZE = 64 * 1024;
+
   private $buffer = '';
   private $sideCarBuffer = '';
+  private $sideCar = '';
   private $keys;
   private $stream;
 
@@ -15,7 +19,7 @@ class WhatsAppEncryptingStream implements StreamInterface {
     $this->stream = $stream;
     $this->keys = $keys;
 
-    $this->encrypt();
+    $this->initializeHash();
   }
 
   public function getSize() {
@@ -33,11 +37,15 @@ class WhatsAppEncryptingStream implements StreamInterface {
   public function close() {
     $this->buffer = '';
     $this->sideCarBuffer = '';
+    $this->sideCar = '';
+    $this->stream->close();
   }
 
   public function detach() {
     $this->buffer = '';
     $this->sideCarBuffer = '';
+    $this->sideCar = '';
+    return $this->stream->detach();
   }
 
   public function tell() {
@@ -73,65 +81,93 @@ class WhatsAppEncryptingStream implements StreamInterface {
   }
 
   public function eof() {
-    return $this->buffer == '';
+    return $this->stream->eof() && $this->buffer == '';
   }
 
-  public function read($length = -1) {
-    if ($length == -1) {
-      $length = strlen($this->buffer);
+  public function read($length) {
+    if ($length > strlen($this->buffer)) {
+      $this->buffer .= $this->encryptBlock(
+          self::BLOCK_SIZE * ceil(($length - strlen($this->buffer)) / self::BLOCK_SIZE)
+      );
+      if ($this->stream->eof()) {
+        $hash = hash_final($this->hashResource, true);
+        $this->buffer .= substr($hash, 0, 10);
+      }
     }
     $data = substr($this->buffer, 0, $length);
+
+    $this->sideCarBuffer .= $data;
+    $this->updateSideCar(false);
+
     $this->buffer = substr($this->buffer, $length);
     return $data ? $data : '';
   }
 
-  private function signIvEncWithMacKey($text) {
-    return substr(hash_hmac("sha256", $this->keys->getIv() . $text, $this->keys->getMacKey(), true), 0, 10);
-  }
-
-  private function signWithMacKey($text) {
-    return substr(hash_hmac("sha256", $text, $this->keys->getMacKey(), true), 0, 10);
-  }
-
-  private function encrypt() {
+  private function encryptBlock($length) {
     if ($this->stream->eof()) {
-      return;
+      return '';
     }
 
-    $length = 64 * 1024;
     $plainText = '';
     do {
-        $plainText .= $this->stream->read($length);
-    } while (!$this->stream->eof());
+        $plainText .= $this->stream->read($length - strlen($plainText));
+    } while (strlen($plainText) < $length && !$this->stream->eof());
 
-    $this->buffer = openssl_encrypt(
+    $options = OPENSSL_RAW_DATA;
+    if (!$this->stream->eof()) {
+        $options |= OPENSSL_ZERO_PADDING;
+    }
+
+    $cipherText = openssl_encrypt(
       $plainText,
       "AES-256-CBC",
       $this->keys->getCipherKey(),
-      OPENSSL_RAW_DATA,
+      $options,
       $this->keys->getIv()
     );
 
-    $this->buffer .= $this->signIvEncWithMacKey($this->buffer);
+    hash_update($this->hashResource, $cipherText);
 
-    $text = $plainText;
-    //$text = $this->buffer;
+    $this->keys->setIv(substr($cipherText, strlen($cipherText) - 16));
 
+    return $cipherText;
+  }
+
+  private function signWithMacKey($text) {
+    // $hashResource = hash_init('sha256', HASH_HMAC, $this->keys->getMacKey());
+    // while ($text != '') {
+    //   $chunk = substr($text, 0, self::BLOCK_SIZE);
+    //   hash_update($hashResource, $chunk);
+    //   $text = substr($text, self::BLOCK_SIZE);
+    // }
+    // $hash = hash_final($hashResource, true);
+    // return substr($hash, 0, 10);
+    return substr(hash_hmac("sha256", $text, $this->keys->getMacKey(), true), 0, 10);
+  }
+
+  private function updateSideCar($isFinal = false) {
     if (in_array($this->keys->getMediaType(), ["VIDEO", "AUDIO"])) {
-      $textLen = strlen($text);
-      $i = 0;
-      do {
-        $block = substr($text, $i, $length + 16);
-        $this->sideCarBuffer .= $this->signWithMacKey($block);
-        $i += $length;
-      } while ($i < $textLen);
+      while (strlen($this->sideCarBuffer) >= self::SIDECAR_BLOCK_SIZE) {
+        $chunk = substr($this->sideCarBuffer, 0, self::SIDECAR_BLOCK_SIZE);
+        $this->sideCar .= $this->signWithMacKey($chunk);
+        $this->sideCarBuffer = substr($this->sideCarBuffer, self::SIDECAR_BLOCK_SIZE - 16);
+      }
+      if ($isFinal && $this->sideCarBuffer != '') {
+        $this->sideCar .= $this->signWithMacKey($this->sideCarBuffer);
+        $this->sideCarBuffer = '';
+      }
     }
   }
 
   public function getSidecar() {
-    if (in_array($this->keys->getMediaType(), ["VIDEO", "AUDIO"])) {
-      return $this->sideCarBuffer;
-    }
+    $this->updateSideCar(true);
+    return $this->sideCar;
+  }
+
+  private function initializeHash() {
+    $this->hashResource = hash_init('sha256', HASH_HMAC, $this->keys->getMacKey());
+    hash_update($this->hashResource, $this->keys->getIv());
+    $this->sideCarBuffer = $this->keys->getIv();
   }
 } 
  

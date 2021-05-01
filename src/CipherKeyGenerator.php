@@ -42,6 +42,10 @@ class CipherKeyGenerator {
     return $this->iv;
   }
 
+  public function setIv($iv) {
+    $this->iv = $iv;
+  }
+
   public function getCipherKey() {
     return $this->cipherKey;
   }
