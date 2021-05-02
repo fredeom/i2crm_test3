@@ -134,23 +134,15 @@ class WhatsAppEncryptingStream implements StreamInterface {
   }
 
   private function signWithMacKey($text) {
-    // $hashResource = hash_init('sha256', HASH_HMAC, $this->keys->getMacKey());
-    // while ($text != '') {
-    //   $chunk = substr($text, 0, self::BLOCK_SIZE);
-    //   hash_update($hashResource, $chunk);
-    //   $text = substr($text, self::BLOCK_SIZE);
-    // }
-    // $hash = hash_final($hashResource, true);
-    // return substr($hash, 0, 10);
     return substr(hash_hmac("sha256", $text, $this->keys->getMacKey(), true), 0, 10);
   }
 
   private function updateSideCar($isFinal = false) {
     if (in_array($this->keys->getMediaType(), ["VIDEO", "AUDIO"])) {
       while (strlen($this->sideCarBuffer) >= self::SIDECAR_BLOCK_SIZE) {
-        $chunk = substr($this->sideCarBuffer, 0, self::SIDECAR_BLOCK_SIZE);
+        $chunk = substr($this->sideCarBuffer, 0, self::SIDECAR_BLOCK_SIZE + 16);
         $this->sideCar .= $this->signWithMacKey($chunk);
-        $this->sideCarBuffer = substr($this->sideCarBuffer, self::SIDECAR_BLOCK_SIZE - 16);
+        $this->sideCarBuffer = substr($this->sideCarBuffer, self::SIDECAR_BLOCK_SIZE);
       }
       if ($isFinal && $this->sideCarBuffer != '') {
         $this->sideCar .= $this->signWithMacKey($this->sideCarBuffer);
