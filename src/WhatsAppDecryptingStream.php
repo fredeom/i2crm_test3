@@ -74,7 +74,7 @@ class WhatsAppDecryptingStream implements StreamInterface {
   }
 
   public function eof() {
-    return $this->buffer === '' && $this->cipherBuffer === '' && $this->stream->eof();
+    return $this->buffer == '' && $this->cipherBuffer === '' && $this->stream->eof();
   }
 
   public function read($length) {

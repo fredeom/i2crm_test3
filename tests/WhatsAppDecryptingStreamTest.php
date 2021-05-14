@@ -24,6 +24,19 @@ final class WhatsAppDecryptingStreamTest extends TestCase {
     $this->testFileDecryption("VIDEO");
   }
 
+  public function testBugFix() {
+    $mediaType = "IMAGE";
+    $mediaKey = file_get_contents(self::sampleDir . $mediaType .'.key');
+    $keys = new CipherKeyGenerator($mediaKey, $mediaType);
+
+    $inStream = Utils::streamFor(Utils::tryFopen(self::sampleDir . $mediaType . '.encrypted', 'r'));
+    $decodedTextStream = new WhatsAppDecryptingStream($inStream, $keys);
+    while (!$decodedTextStream->eof()) { // fix bug with eternal loop
+      $decodedTextStream->read(8192);
+    }
+    $this->assertTrue(true);
+  }
+
   private function testFileDecryption($mediaType) {
     $mediaKey = file_get_contents(self::sampleDir . $mediaType .'.key');
     $keys = new CipherKeyGenerator($mediaKey, $mediaType);
