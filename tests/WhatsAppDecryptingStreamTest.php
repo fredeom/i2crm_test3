@@ -24,7 +24,7 @@ final class WhatsAppDecryptingStreamTest extends TestCase {
     $this->testFileDecryption("VIDEO");
   }
 
-  public function testBugFix() {
+  public function testBugFixWithInfiniteLoopDuringDecryption() {
     $mediaType = "IMAGE";
     $mediaKey = file_get_contents(self::sampleDir . $mediaType .'.key');
     $keys = new CipherKeyGenerator($mediaKey, $mediaType);

@@ -1,94 +1,37 @@
 <?php
 
+use GuzzleHttp\Psr7\StreamDecoratorTrait;
 use Psr\Http\Message\StreamInterface;
-
-require_once(__DIR__ . '/CipherKeyGenerator.php');
+use Jsq\EncryptionStreams\Cbc;
+use Jsq\EncryptionStreams\AesEncryptingStream;
 
 class WhatsAppEncryptingStream implements StreamInterface {
 
-  const BLOCK_SIZE = 32;
   const SIDECAR_BLOCK_SIZE = 64 * 1024;
 
+  use StreamDecoratorTrait;
+
   private $buffer = '';
+
   private $sideCarBuffer = '';
   private $sideCar = '';
+
   private $keys;
   private $stream;
 
   public function __construct(StreamInterface $stream, CipherKeyGenerator $keys) {
-    $this->stream = $stream;
+    $this->stream = new AesEncryptingStream($stream, $keys->getCipherKey(), new Cbc($keys->getIv()));
     $this->keys = $keys;
 
     $this->initializeHash();
   }
 
-  public function getSize() {
-    throw new \BadMethodCallException('Not implemented');
-  }
-
-  public function isWritable() {
-    return false;
-  }
-
-  public function __toString() {
-    return $this->getContents();
-  }
-
-  public function close() {
-    $this->buffer = '';
-    $this->sideCarBuffer = '';
-    $this->sideCar = '';
-    $this->stream->close();
-  }
-
-  public function detach() {
-    $this->buffer = '';
-    $this->sideCarBuffer = '';
-    $this->sideCar = '';
-    return $this->stream->detach();
-  }
-
-  public function tell() {
-    throw new \BadMethodCallException('Not implemented');
-  }
-  
-  public function isSeekable() {
-    return false;
-  }
-
-  public function seek($offset, $whence = SEEK_SET) {
-    throw new \BadMethodCallException('Not implemented');
-  }
-
-  public function rewind() {
-    throw new \BadMethodCallException('Not implemented');
-  }
-
-  public function write($string) {
-    throw new \BadMethodCallException('Not implemented');
-  }
-
-  public function isReadable() {
-    return true;
-  }
-
-  public function getContents() {
-    return $this->buffer;
-  }
-
-  public function getMetadata($key = null) {
-    return null;
-  }
-
-  public function eof() {
-    return $this->stream->eof() && $this->buffer == '';
-  }
-
   public function read($length) {
-    if ($length > strlen($this->buffer)) {
-      $this->buffer .= $this->encryptBlock(
-          self::BLOCK_SIZE * ceil(($length - strlen($this->buffer)) / self::BLOCK_SIZE)
-      );
+    $bufferLength = strlen($this->buffer);
+    if ($length > $bufferLength) {
+      $cipherText = $this->stream->read($length - $bufferLength);
+      $this->buffer .= $cipherText;
+      hash_update($this->hashResource, $cipherText);
       if ($this->stream->eof()) {
         $hash = hash_final($this->hashResource, true);
         $this->buffer .= substr($hash, 0, 10);
@@ -101,36 +44,6 @@ class WhatsAppEncryptingStream implements StreamInterface {
 
     $this->buffer = substr($this->buffer, $length);
     return $data ? $data : '';
-  }
-
-  private function encryptBlock($length) {
-    if ($this->stream->eof()) {
-      return '';
-    }
-
-    $plainText = '';
-    do {
-        $plainText .= $this->stream->read($length - strlen($plainText));
-    } while (strlen($plainText) < $length && !$this->stream->eof());
-
-    $options = OPENSSL_RAW_DATA;
-    if (!$this->stream->eof()) {
-        $options |= OPENSSL_ZERO_PADDING;
-    }
-
-    $cipherText = openssl_encrypt(
-      $plainText,
-      "AES-256-CBC",
-      $this->keys->getCipherKey(),
-      $options,
-      $this->keys->getIv()
-    );
-
-    hash_update($this->hashResource, $cipherText);
-
-    $this->keys->setIv(substr($cipherText, strlen($cipherText) - 16));
-
-    return $cipherText;
   }
 
   private function signWithMacKey($text) {

@@ -2,11 +2,7 @@
 
 declare(strict_types=1);
 
-require_once (__DIR__ . '/../src/CipherKeyGenerator.php');
-require_once (__DIR__ . '/../src/WhatsAppEncryptingStream.php');
-
 use PHPUnit\Framework\TestCase;
-use GuzzleHttp\Psr7;
 use GuzzleHttp\Psr7\Utils;
 
 final class WhatsAppEncryptingStreamTest extends TestCase {
@@ -26,6 +22,20 @@ final class WhatsAppEncryptingStreamTest extends TestCase {
 
   public function testVideoEncryptionSideCar() {
     $this->testFileEncryption("VIDEO", true);
+  }
+
+  public function testBugFixWithInfiniteLoopDuringEncryption() {
+    $mediaType = "IMAGE";
+    $mediaKey = file_get_contents(self::sampleDir . $mediaType . '.key');
+    $keys = new CipherKeyGenerator($mediaKey, $mediaType);
+
+    $inStream = Utils::streamFor(Utils::tryFopen(self::sampleDir . $mediaType .'.original', 'r'));
+    $cipherTextStream = new WhatsAppEncryptingStream($inStream, $keys);
+
+    while (!$cipherTextStream->eof()) {
+      $cipherTextStream->read(8192);
+    }
+    $this->assertTrue(true);
   }
 
 
