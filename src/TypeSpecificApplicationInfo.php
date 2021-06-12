@@ -10,5 +10,3 @@ class TypeSpecificApplicationInfo {
     return static::${$mediaType};
   }
 }
-
-?>

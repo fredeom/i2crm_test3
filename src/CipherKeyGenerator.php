@@ -1,7 +1,5 @@
 <?php
 
-require_once (__DIR__ . '/TypeSpecificApplicationInfo.php');
-
 class CipherKeyGenerator {
   private $mediaKey;
   private $mediaKeyExpanded;
@@ -58,5 +56,3 @@ class CipherKeyGenerator {
     return $this->refKey;
   }
 }
-
-?>

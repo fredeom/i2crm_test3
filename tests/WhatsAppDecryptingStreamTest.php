@@ -2,11 +2,7 @@
 
 declare(strict_types=1);
 
-require_once (__DIR__ . '/../src/CipherKeyGenerator.php');
-require_once (__DIR__ . '/../src/WhatsAppDecryptingStream.php');
-
 use PHPUnit\Framework\TestCase;
-use GuzzleHttp\Psr7;
 use GuzzleHttp\Psr7\Utils;
 
 final class WhatsAppDecryptingStreamTest extends TestCase {
@@ -54,5 +50,3 @@ final class WhatsAppDecryptingStreamTest extends TestCase {
     $this->assertTrue(md5_file($tmpUri) == md5_file(self::sampleDir . $mediaType . '.original'));
   }
 }
-
-?>

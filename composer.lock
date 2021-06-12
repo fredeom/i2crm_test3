@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "766d6850f3a41d072dafa8fdcf8425d0",
+    "content-hash": "31ff8d476938a5d48542c51ba2d591c6",
     "packages": [
         {
             "name": "psr/http-message",
@@ -193,6 +193,58 @@
                 "url"
             ],
             "time": "2021-03-21T16:25:00+00:00"
+        },
+        {
+            "name": "jsq/psr7-stream-encryption",
+            "version": "0.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/jeskew/php-encrypted-streams.git",
+                "reference": "2f83ed06b2b3b954c43e3cfae99965acf3b42b7f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/jeskew/php-encrypted-streams/zipball/2f83ed06b2b3b954c43e3cfae99965acf3b42b7f",
+                "reference": "2f83ed06b2b3b954c43e3cfae99965acf3b42b7f",
+                "shasum": ""
+            },
+            "require": {
+                "ext-openssl": "*",
+                "guzzlehttp/psr7": "~1.0",
+                "php": ">=7.1",
+                "psr/http-message": "~1.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^6.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Jsq\\EncryptionStreams\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "Apache-2.0"
+            ],
+            "authors": [
+                {
+                    "name": "Jonathan Eskew",
+                    "email": "jonathan@jeskew.net"
+                }
+            ],
+            "description": "For encrypting and decrypting streams of arbitrary size.",
+            "keywords": [
+                "encryption",
+                "psr",
+                "psr-7",
+                "stream"
+            ],
+            "support": {
+                "issues": "https://github.com/jeskew/php-encrypted-streams/issues",
+                "source": "https://github.com/jeskew/php-encrypted-streams/tree/master"
+            },
+            "time": "2020-02-29T21:40:31+00:00"
         },
         {
             "name": "myclabs/deep-copy",
@@ -2136,5 +2188,5 @@
         "ext-openssl": "*"
     },
     "platform-dev": [],
-    "plugin-api-version": "1.1.0"
+    "plugin-api-version": "2.0.0"
 }

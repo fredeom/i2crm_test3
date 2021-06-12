@@ -75,5 +75,3 @@ class WhatsAppEncryptingStream implements StreamInterface {
     $this->sideCarBuffer = $this->keys->getIv();
   }
 } 
- 
-?>

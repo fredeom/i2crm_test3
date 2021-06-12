@@ -59,5 +59,3 @@ class WhatsAppDecryptingStream implements StreamInterface {
     return $data ? $data : '';
   }
 }
-
-?>

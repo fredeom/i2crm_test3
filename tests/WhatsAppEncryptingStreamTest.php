@@ -68,5 +68,3 @@ final class WhatsAppEncryptingStreamTest extends TestCase {
     }
   }
 }
-
-?>
